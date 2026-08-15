@@ -922,9 +922,7 @@ class WebClient:
         }
 
         try:
-            response = self._session.get(
-                url, headers=headers, params=payload, timeout=self._timeout
-            )
+            response = self.get(url, headers=headers, params=payload)
             response.raise_for_status()
             data = response.json()
 
@@ -944,6 +942,11 @@ class WebClient:
                         results.append(
                             {"title": title, "url": url, "snippet": description}
                         )
+            else:
+                # Fail loudly on unrecognized API response structure
+                raise ValueError(
+                    f"You.com API returned unexpected response structure. Expected 'results.web' but got: {list(data.keys()) if isinstance(data, dict) else type(data).__name__}"
+                )
 
             return results
 

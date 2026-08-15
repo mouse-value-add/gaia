@@ -904,7 +904,7 @@ class TestSearchYouCom:
             }
         }
 
-        with patch.object(self.client._session, "get", return_value=mock_response) as get:
+        with patch.object(self.client, "get", return_value=mock_response) as get_call:
             results = self.client.search_youcom("test query", num_results=3)
 
         assert results == [
@@ -915,14 +915,14 @@ class TestSearchYouCom:
             }
         ]
 
-        assert get.call_args.args[0] == "https://api.you.com/v1/agents/search"
-        assert get.call_args.kwargs["params"] == {
+        assert get_call.call_args.args[0] == "https://api.you.com/v1/agents/search"
+        assert get_call.call_args.kwargs["params"] == {
             "query": "test query",
             "count": 3,
             "safesearch": "moderate",
         }
-        assert "Content-Type" not in get.call_args.kwargs["headers"]
-        assert get.call_args.kwargs["headers"]["User-Agent"] == (
+        assert "Content-Type" not in get_call.call_args.kwargs["headers"]
+        assert get_call.call_args.kwargs["headers"]["User-Agent"] == (
             "youdotcom-integration/amd-gaia"
         )
 
@@ -932,19 +932,32 @@ class TestSearchYouCom:
         mock_response.raise_for_status = MagicMock()
         mock_response.json.return_value = {"results": {"web": []}}
 
-        with patch.object(self.client._session, "get", return_value=mock_response) as get:
+        with patch.object(self.client, "get", return_value=mock_response) as get_call:
             results = self.client.search_youcom(
                 "test query", num_results=999, api_key="ydc-test-key"
             )
 
         assert results == []
-        assert get.call_args.args[0] == "https://api.you.com/v1/search"
-        assert get.call_args.kwargs["params"]["count"] == 20
-        assert get.call_args.kwargs["headers"]["X-API-Key"] == "ydc-test-key"
-        assert "Content-Type" not in get.call_args.kwargs["headers"]
-        assert get.call_args.kwargs["headers"]["User-Agent"] == (
+        assert get_call.call_args.args[0] == "https://api.you.com/v1/search"
+        assert get_call.call_args.kwargs["params"]["count"] == 20
+        assert get_call.call_args.kwargs["headers"]["X-API-Key"] == "ydc-test-key"
+        assert "Content-Type" not in get_call.call_args.kwargs["headers"]
+        assert get_call.call_args.kwargs["headers"]["User-Agent"] == (
             "youdotcom-integration/amd-gaia"
         )
+
+    def test_invalid_response_schema_raises_error(self):
+        """You.com API returning unexpected schema raises ValueError instead of empty results."""
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.json.return_value = {"unexpected": "schema"}  # Missing results.web
+
+        with patch.object(self.client, "get", return_value=mock_response):
+            with pytest.raises(ValueError) as exc_info:
+                self.client.search_youcom("test query")
+        
+        assert "You.com API returned unexpected response structure" in str(exc_info.value)
+        assert "Expected 'results.web' but got: ['unexpected']" in str(exc_info.value)
 
 
 if __name__ == "__main__":
